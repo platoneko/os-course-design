@@ -19,6 +19,9 @@ add_executable(process-monitor
   mainwindow.h
   TaskInfo.h
   mainwindow.ui
+  memdialog.cpp
+  memdialog.h
+  memdialog.ui
 )
 
 target_link_libraries(process-monitor PRIVATE Qt5::Widgets)

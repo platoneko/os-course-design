@@ -4,13 +4,15 @@
 #define MAXLINE 1024
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+    : QMainWindow(parent),
+    ui(new Ui::MainWindow)
+
 {
     dir_ptr = opendir("/proc");
     chdir("/proc");
 
     ui->setupUi(this);
+    this->setWindowTitle("Process Monitor");
     model = new QStandardItemModel();
     ui->taskTable->setModel(model);
     initTableModel();
@@ -19,10 +21,10 @@ MainWindow::MainWindow(QWidget *parent)
     sortMethod = S_A;
 
     connect(ui->taskTable->horizontalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(on_sectionClicked(int)));
-
+    connect(ui->memDetailButton, SIGNAL(clicked()), this, SLOT(on_memDetailButton_clicked()), Qt::UniqueConnection);
     update();
-    QTimer *timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, QOverload<>::of(&MainWindow::update));
+    timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, &MainWindow::update);
     timer->start(3000);
 }
 
@@ -540,4 +542,26 @@ void MainWindow::sortTable() {
         ui->taskTable->sortByColumn(8, Qt::AscendingOrder);
         break;
     }
+}
+
+void MainWindow::on_memDetailButton_clicked() {
+    if (!isMemDialogDisplay) {
+        isMemDialogDisplay = true;
+        memDialog = new MemDialog(this);
+        memDialog->setModal(false);
+        memDialog->show();
+        memDialog->update(mem_total, mem_free, mem_used, mem_buff, mem_cache, mem_available, swap_total, swap_free, swap_used);
+        connect(timer, &QTimer::timeout, this, &MainWindow::sendMemInfo);
+        connect(memDialog, &MemDialog::closeSignal, this, &MainWindow::on_memDialog_closed);
+    }
+}
+
+void MainWindow::sendMemInfo() {
+    memDialog->update(mem_total, mem_free, mem_used, mem_buff, mem_cache, mem_available, swap_total, swap_free, swap_used);
+}
+
+void MainWindow::on_memDialog_closed() {
+    disconnect(timer, &QTimer::timeout, this, &MainWindow::sendMemInfo);
+    disconnect(memDialog, &MemDialog::closeSignal, this, &MainWindow::on_memDialog_closed);
+    isMemDialogDisplay = false;
 }

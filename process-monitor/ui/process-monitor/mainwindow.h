@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include "TaskInfo.h"
+#include "memdialog.h"
 
 #include <QMainWindow>
 #include <QStandardItemModel>
@@ -26,12 +27,14 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
+
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     void update();
 
 private:
     Ui::MainWindow *ui;
+    QTimer *timer;
     QStandardItemModel *model;
     std::unordered_map<int, TaskInfo> taskInfoDict;
     unsigned long mem_total, mem_used, mem_free, mem_shared, mem_buff, mem_cache, mem_available;
@@ -52,9 +55,13 @@ private:
                          MEM_A, MEM_D,
                          TIME_A, TIME_D};
     const std::unordered_map<char, int> statePriority = {{'R', 0}, {'S', 1}, {'I', 2}, {'T', 3}, {'D', 4}, {'Z', 5}};
+    MemDialog *memDialog;
+    bool isMemDialogDisplay = false;
 
 private slots:
     void on_sectionClicked(int index);
+    void on_memDetailButton_clicked();
+    void on_memDialog_closed();
 
 private:
     void initTableModel();
@@ -70,6 +77,7 @@ private:
         return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
     }
     void sortTable();
+    void sendMemInfo();
 };
 
 
