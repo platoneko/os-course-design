@@ -9,6 +9,7 @@ MemDialog::MemDialog(QWidget *parent) :
 {
     ui->setupUi(this);
     this->setAttribute(Qt::WA_DeleteOnClose,true);
+    this->setWindowTitle("Memory Details");
 }
 
 MemDialog::~MemDialog()
