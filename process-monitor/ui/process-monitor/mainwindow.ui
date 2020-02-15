@@ -214,7 +214,25 @@
      </font>
     </property>
     <property name="text">
-     <string>&amp;Kill </string>
+     <string>&amp;Kill</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="niceButton">
+    <property name="geometry">
+     <rect>
+      <x>680</x>
+      <y>530</y>
+      <width>80</width>
+      <height>25</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <underline>false</underline>
+     </font>
+    </property>
+    <property name="text">
+     <string>&amp;Nice</string>
     </property>
    </widget>
   </widget>

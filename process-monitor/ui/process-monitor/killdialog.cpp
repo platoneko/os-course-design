@@ -16,7 +16,8 @@ KillDialog::KillDialog(const int pid, const std::string comm, QWidget *parent) :
 {
     ui->setupUi(this);
     this->setAttribute(Qt::WA_DeleteOnClose,true);
-    this->setWindowTitle("Kill Task");
+    sprintf(title, "PID %d %s", pid, comm.c_str());
+    this->setWindowTitle(title);
     char line[MAXLINE];
     sprintf(line, "Sure to kill task with pid %d ?", pid);
     ui->promptLabel->setText(line);
@@ -35,15 +36,13 @@ void KillDialog::on_cancelButton_clicked()
 
 void KillDialog::on_confirmButton_clicked()
 {
-    if (kill(pid, SIGKILL) < 0) {
-        struct stat statBuf;
-        char s_pid[MAXLINE];
-        sprintf(s_pid, "%d", pid);
-        if (stat(s_pid, &statBuf) < 0) {
-            QMessageBox::warning(this, "Task Terminated", "Task has terminated!");
-        } else {
-            QMessageBox::warning(this, "Permission Denied", "Permission Denied!");
-        }
+    errno = 0;
+    kill(pid, SIGKILL);
+    printf("%s\n", strerror(errno));
+    fflush(stdout);
+    if (errno != 0) {
+        QMessageBox::warning(this, title, strerror(errno));
+        errno = 0;
     }
     this->close();
 }

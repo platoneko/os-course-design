@@ -25,6 +25,9 @@ add_executable(process-monitor
   killdialog.cpp
   killdialog.h
   killdialog.ui
+  nicedialog.cpp
+  nicedialog.h
+  nicedialog.ui
 )
 
 target_link_libraries(process-monitor PRIVATE Qt5::Widgets)

@@ -4,6 +4,7 @@
 #include "TaskInfo.h"
 #include "memdialog.h"
 #include "killdialog.h"
+#include "nicedialog.h"
 
 #include <QMainWindow>
 #include <QStandardItemModel>
@@ -62,6 +63,7 @@ private:
     MemDialog *memDialog;
     bool isMemDialogActive = false;
     KillDialog *killDialog;
+    NiceDialog *niceDialog;
 
     int currSelectedRow = 0;
     int currScrollValue = 0;
@@ -75,6 +77,8 @@ private slots:
     void on_memDialog_closed();
     void on_selectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
     void on_killButton_clicked();
+
+    void on_niceButton_clicked();
 
 private:
     void initTableModel();

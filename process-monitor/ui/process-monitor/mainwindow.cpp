@@ -595,3 +595,10 @@ void MainWindow::on_killButton_clicked() {
     killDialog->setModal(true);
     killDialog->show();
 }
+
+void MainWindow::on_niceButton_clicked() {
+    int pid = model->item(currSelectedRow, 0)->data(Qt::DisplayRole).toInt();
+    niceDialog = new NiceDialog(pid, taskInfoDict[pid].comm, taskInfoDict[pid].ni, this);
+    niceDialog->setModal(true);
+    niceDialog->show();
+}

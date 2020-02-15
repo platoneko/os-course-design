@@ -2,7 +2,8 @@
 #define KILLDIALOG_H
 
 #include <QDialog>
-#include <string>
+
+#define MAXLINE 1024
 
 namespace Ui {
 class KillDialog;
@@ -25,6 +26,7 @@ private:
     Ui::KillDialog *ui;
     const int pid;
     const std::string comm;
+    char title[MAXLINE];
 };
 
 #endif // KILLDIALOG_H
