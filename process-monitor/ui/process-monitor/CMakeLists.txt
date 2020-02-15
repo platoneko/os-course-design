@@ -22,6 +22,9 @@ add_executable(process-monitor
   memdialog.cpp
   memdialog.h
   memdialog.ui
+  killdialog.cpp
+  killdialog.h
+  killdialog.ui
 )
 
 target_link_libraries(process-monitor PRIVATE Qt5::Widgets)

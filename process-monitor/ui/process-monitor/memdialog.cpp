@@ -3,6 +3,8 @@
 
 #include <QDebug>
 
+#define MAXLINE 1024
+
 MemDialog::MemDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::MemDialog)
@@ -26,19 +28,19 @@ void MemDialog::update(unsigned long mem_total,
                        unsigned long swap_total,
                        unsigned long swap_free,
                        unsigned long swap_used) {
-    char buf[BUFSIZ];
-    sprintf(buf, "MiB Mem : %8.1f total, %8.1f free, %8.1f used, %8.1f buff/cache",
+    char line[BUFSIZ];
+    sprintf(line, "MiB Mem : %8.1f total, %8.1f free, %8.1f used, %8.1f buff/cache",
             double(mem_total)/1024,
             double(mem_free)/1024,
             double(mem_used)/1024,
             double(mem_buff+mem_cache)/1024);
-    ui->memInfo->setText(buf);
-    sprintf(buf, "MiB Swap : %8.1f total, %8.1f free, %8.1f used. %8.1f avail Mem",
+    ui->memInfo->setText(line);
+    sprintf(line, "MiB Swap : %8.1f total, %8.1f free, %8.1f used. %8.1f avail Mem",
             double(swap_total)/1024,
             double(swap_free)/1024,
             double(swap_used)/1024,
             double(mem_available)/1024);
-    ui->swpInfo->setText(buf);
+    ui->swpInfo->setText(line);
 }
 
 void MemDialog::closeEvent(QCloseEvent *event) {

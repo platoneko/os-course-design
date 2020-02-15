@@ -13,6 +13,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->setupUi(this);
     this->setWindowTitle("Process Monitor");
+
+    ui->taskTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    ui->taskTable->setSelectionMode(QAbstractItemView::SingleSelection);
     model = new QStandardItemModel();
     ui->taskTable->setModel(model);
     initTableModel();
@@ -21,7 +24,8 @@ MainWindow::MainWindow(QWidget *parent)
     sortMethod = S_A;
 
     connect(ui->taskTable->horizontalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(on_sectionClicked(int)));
-    connect(ui->memDetailButton, SIGNAL(clicked()), this, SLOT(on_memDetailButton_clicked()), Qt::UniqueConnection);
+    connect(ui->memDetailButton, SIGNAL(clicked()), this, SLOT(on_memDetailButton_clicked()));
+    connect(ui->taskTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::on_selectionChanged);
     update();
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::update);
@@ -56,7 +60,6 @@ void MainWindow::initTableModel() {
     model->setHeaderData(9, Qt::Horizontal, "CPU%");
     model->setHeaderData(10, Qt::Horizontal, "MEM%");
     model->setHeaderData(11, Qt::Horizontal, "TIME+");
-    model->setRowCount(0);
 
     ui->taskTable->verticalHeader()->hide();
     ui->taskTable->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
@@ -74,9 +77,6 @@ void MainWindow::initTableModel() {
     ui->taskTable->setColumnWidth(9,80);
     ui->taskTable->setColumnWidth(10,80);
     ui->taskTable->setColumnWidth(11,150);
-
-    ui->taskTable->selectColumn(0);
-
 }
 
 void MainWindow::updateLoadAverage() {
@@ -250,6 +250,19 @@ void MainWindow::updateTaskInfo() {
         }
     }
     rewinddir(dir_ptr);
+
+    ++gcCount;
+    if (gcCount == gcInterval) {
+        auto it = taskInfoDict.begin();
+        while (it != taskInfoDict.end()) {
+            if (it->second.dirty == 0) {
+                it = taskInfoDict.erase(it);
+            } else {
+                it++;
+            }
+        }
+        gcCount = 0;
+    }
     sprintf(buf, "Tasks: %4d total, %4d running, %4d sleeping, %4d stopped, %4d zombie",
             taskTotal, taskRunning, taskSleeping, taskStopped, taskZombie);
     ui->tasks->setText(buf);
@@ -257,7 +270,6 @@ void MainWindow::updateTaskInfo() {
 }
 
 void MainWindow::displayTaskInfo() {
-    // model->clear();
     int rowCount = model->rowCount();
     if (rowCount < taskTotal) {
         for (int i = rowCount; i < taskTotal; ++i) {
@@ -267,6 +279,7 @@ void MainWindow::displayTaskInfo() {
             }
         }
     }
+
     model->setRowCount(taskTotal);
     int row = 0;
     char s_virt[MAXLINE], s_res[MAXLINE], s_shr[MAXLINE], s_time[MAXLINE];
@@ -304,6 +317,9 @@ void MainWindow::displayTaskInfo() {
         }
     }
     sortTable();
+    currScrollValue = ui->taskTable->verticalScrollBar()->value();
+    ui->taskTable->selectRow(currSelectedRow);
+    ui->taskTable->verticalScrollBar()->setValue(currScrollValue);
 }
 
 void MainWindow::formatCommand(char *src, char *dest) {
@@ -443,6 +459,9 @@ void MainWindow::on_sectionClicked(int index) {
         break;
     }
     sortTable();
+    currScrollValue = ui->taskTable->verticalScrollBar()->value();
+    ui->taskTable->selectRow(currSelectedRow);
+    ui->taskTable->verticalScrollBar()->setValue(currScrollValue);
 }
 
 void MainWindow::sortTable() {
@@ -545,8 +564,8 @@ void MainWindow::sortTable() {
 }
 
 void MainWindow::on_memDetailButton_clicked() {
-    if (!isMemDialogDisplay) {
-        isMemDialogDisplay = true;
+    if (!isMemDialogActive) {
+        isMemDialogActive = true;
         memDialog = new MemDialog(this);
         memDialog->setModal(false);
         memDialog->show();
@@ -563,5 +582,16 @@ void MainWindow::sendMemInfo() {
 void MainWindow::on_memDialog_closed() {
     disconnect(timer, &QTimer::timeout, this, &MainWindow::sendMemInfo);
     disconnect(memDialog, &MemDialog::closeSignal, this, &MainWindow::on_memDialog_closed);
-    isMemDialogDisplay = false;
+    isMemDialogActive = false;
+}
+
+void MainWindow::on_selectionChanged(const QItemSelection &selected, const QItemSelection &deselected) {
+    currSelectedRow = selected.indexes().first().row();
+}
+
+void MainWindow::on_killButton_clicked() {
+    int pid = model->item(currSelectedRow, 0)->data(Qt::DisplayRole).toInt();
+    killDialog = new KillDialog(pid, taskInfoDict[pid].comm, this);
+    killDialog->setModal(true);
+    killDialog->show();
 }

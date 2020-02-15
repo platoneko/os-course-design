@@ -3,11 +3,14 @@
 
 #include "TaskInfo.h"
 #include "memdialog.h"
+#include "killdialog.h"
 
 #include <QMainWindow>
 #include <QStandardItemModel>
 #include <QTimer>
 #include <QStandardItemModel>
+#include <QItemSelection>
+#include <QScrollBar>
 
 #include <unistd.h>
 #include <sys/stat.h>
@@ -55,13 +58,23 @@ private:
                          MEM_A, MEM_D,
                          TIME_A, TIME_D};
     const std::unordered_map<char, int> statePriority = {{'R', 0}, {'S', 1}, {'I', 2}, {'T', 3}, {'D', 4}, {'Z', 5}};
+
     MemDialog *memDialog;
-    bool isMemDialogDisplay = false;
+    bool isMemDialogActive = false;
+    KillDialog *killDialog;
+
+    int currSelectedRow = 0;
+    int currScrollValue = 0;
+
+    const int gcInterval = 10;
+    int gcCount = 0;
 
 private slots:
     void on_sectionClicked(int index);
     void on_memDetailButton_clicked();
     void on_memDialog_closed();
+    void on_selectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
+    void on_killButton_clicked();
 
 private:
     void initTableModel();
