@@ -224,27 +224,27 @@ void MainWindow::updateTaskInfo() {
             }
 
             if (taskInfoDict.count(pid)) {
-                TaskInfo &taskInfo = taskInfoDict[pid];
-                taskInfo.uid = uid;
-                taskInfo.pri = priority;
-                taskInfo.ni = nice;
-                taskInfo.virt = virt;
-                taskInfo.res = res;
-                taskInfo.shr = shr;
-                taskInfo.s = state;
-                taskInfo.cpu = float(utime+stime-taskInfo.time)/3;
-                taskInfo.mem = float(res)/mem_total*100;
-                taskInfo.time = utime+stime;
-                taskInfo.command = command;
-                taskInfo.comm = comm;
-                taskInfo.dirty = 1;
-                cpuUsed += taskInfo.cpu;
+                TaskInfo *taskInfo = taskInfoDict[pid];
+                taskInfo->uid = uid;
+                taskInfo->pri = priority;
+                taskInfo->ni = nice;
+                taskInfo->virt = virt;
+                taskInfo->res = res;
+                taskInfo->shr = shr;
+                taskInfo->s = state;
+                taskInfo->cpu = float(utime+stime-taskInfo->time)/3;
+                taskInfo->mem = float(res)/mem_total*100;
+                taskInfo->time = utime+stime;
+                taskInfo->command = command;
+                taskInfo->comm = comm;
+                taskInfo->dirty = 1;
+                cpuUsed += taskInfo->cpu;
             } else {
-                taskInfoDict[pid] = TaskInfo(pid, uid, priority, nice,
-                                             virt, res, shr,
-                                             state, float(res)/mem_total,
-                                             utime+stime,
-                                             command, comm);
+                taskInfoDict[pid] = new TaskInfo(pid, uid, priority, nice,
+                                                 virt, res, shr,
+                                                 state, float(res)/mem_total,
+                                                 utime+stime,
+                                                 command, comm);
             }
             chdir("..");
         }
@@ -255,7 +255,8 @@ void MainWindow::updateTaskInfo() {
     if (gcCount == gcInterval) {
         auto it = taskInfoDict.begin();
         while (it != taskInfoDict.end()) {
-            if (it->second.dirty == 0) {
+            if (it->second->dirty == 0) {
+                delete it->second;
                 it = taskInfoDict.erase(it);
             } else {
                 it++;
@@ -284,42 +285,44 @@ void MainWindow::displayTaskInfo() {
     int row = 0;
     char s_virt[MAXLINE], s_res[MAXLINE], s_shr[MAXLINE], s_time[MAXLINE];
     for (auto &taskInfo: taskInfoDict) {
-        if (taskInfo.second.dirty) {
-            model->item(row, 0)->setData(taskInfo.second.pid, Qt::DisplayRole);
-            model->item(row, 1)->setData(getpwuid(uid_t(taskInfo.second.uid))->pw_name, Qt::DisplayRole);
-            if (taskInfo.second.command.length() == 0) {
-                model->item(row, 2)->setData(taskInfo.second.comm.c_str(), Qt::DisplayRole);
+        if (taskInfo.second->dirty) {
+            model->item(row, 0)->setData(taskInfo.second->pid, Qt::DisplayRole);
+            model->item(row, 1)->setData(getpwuid(uid_t(taskInfo.second->uid))->pw_name, Qt::DisplayRole);
+            if (taskInfo.second->command.length() == 0) {
+                model->item(row, 2)->setData(taskInfo.second->comm.c_str(), Qt::DisplayRole);
             } else {
-                model->item(row, 2)->setData(taskInfo.second.command.c_str(), Qt::DisplayRole);
+                model->item(row, 2)->setData(taskInfo.second->command.c_str(), Qt::DisplayRole);
             }
-            model->item(row, 3)->setData(taskInfo.second.pri, Qt::DisplayRole);
-            model->item(row, 4)->setData(taskInfo.second.ni, Qt::DisplayRole);
-            formatSize(taskInfo.second.virt, s_virt);
+            model->item(row, 3)->setData(taskInfo.second->pri, Qt::DisplayRole);
+            model->item(row, 4)->setData(taskInfo.second->ni, Qt::DisplayRole);
+            formatSize(taskInfo.second->virt, s_virt);
             model->item(row, 5)->setData(s_virt, Qt::DisplayRole);
-            formatSize(taskInfo.second.res, s_res);
+            formatSize(taskInfo.second->res, s_res);
             model->item(row, 6)->setData(s_res, Qt::DisplayRole);
-            formatSize(taskInfo.second.shr, s_shr);
+            formatSize(taskInfo.second->shr, s_shr);
             model->item(row, 7)->setData(s_shr, Qt::DisplayRole);
-            model->item(row, 8)->setData(QChar(taskInfo.second.s), Qt::DisplayRole);
-            model->item(row, 9)->setData(QString::number(taskInfo.second.cpu, 'f', 1), Qt::DisplayRole);
-            model->item(row, 10)->setData(QString::number(taskInfo.second.mem, 'f', 1), Qt::DisplayRole);
-            formatTime(taskInfo.second.time, s_time);
+            model->item(row, 8)->setData(QChar(taskInfo.second->s), Qt::DisplayRole);
+            model->item(row, 9)->setData(QString::number(taskInfo.second->cpu, 'f', 1), Qt::DisplayRole);
+            model->item(row, 10)->setData(QString::number(taskInfo.second->mem, 'f', 1), Qt::DisplayRole);
+            formatTime(taskInfo.second->time, s_time);
             model->item(row, 11)->setData(s_time, Qt::DisplayRole);
-            model->item(row, 5)->setData(qlonglong(taskInfo.second.virt), Qt::UserRole);
-            model->item(row, 6)->setData(qlonglong(taskInfo.second.res), Qt::UserRole);
-            model->item(row, 7)->setData(qlonglong(taskInfo.second.shr), Qt::UserRole);
-            model->item(row, 11)->setData(qlonglong(taskInfo.second.time), Qt::UserRole);
-            model->item(row, 9)->setData(taskInfo.second.cpu, Qt::UserRole);
-            model->item(row, 10)->setData(taskInfo.second.mem, Qt::UserRole);
-            model->item(row, 8)->setData(statePriority.at(taskInfo.second.s), Qt::UserRole);
-            taskInfo.second.dirty = 0;
+            model->item(row, 5)->setData(qlonglong(taskInfo.second->virt), Qt::UserRole);
+            model->item(row, 6)->setData(qlonglong(taskInfo.second->res), Qt::UserRole);
+            model->item(row, 7)->setData(qlonglong(taskInfo.second->shr), Qt::UserRole);
+            model->item(row, 11)->setData(qlonglong(taskInfo.second->time), Qt::UserRole);
+            model->item(row, 9)->setData(taskInfo.second->cpu, Qt::UserRole);
+            model->item(row, 10)->setData(taskInfo.second->mem, Qt::UserRole);
+            model->item(row, 8)->setData(statePriority.at(taskInfo.second->s), Qt::UserRole);
+            taskInfo.second->dirty = 0;
             ++row;
         }
     }
     sortTable();
-    currScrollValue = ui->taskTable->verticalScrollBar()->value();
+    currVerticalScrollValue = ui->taskTable->verticalScrollBar()->value();
+    currHorizontalScrollValue = ui->taskTable->horizontalScrollBar()->value();
     ui->taskTable->selectRow(currSelectedRow);
-    ui->taskTable->verticalScrollBar()->setValue(currScrollValue);
+    ui->taskTable->verticalScrollBar()->setValue(currVerticalScrollValue);
+    ui->taskTable->horizontalScrollBar()->setValue(currHorizontalScrollValue);
 }
 
 void MainWindow::formatCommand(char *src, char *dest) {
@@ -359,7 +362,7 @@ void MainWindow::formatTime(unsigned long l_time, char *s_time) {
     unsigned long m;
     float s;
     m = l_time/6000;
-    s = (float)l_time/100 - m*60;
+    s = float(l_time)/100 - m*60;
     if (m >= 60) {
         unsigned long h = m/60;
         m = m%60;
@@ -459,9 +462,11 @@ void MainWindow::on_sectionClicked(int index) {
         break;
     }
     sortTable();
-    currScrollValue = ui->taskTable->verticalScrollBar()->value();
+    currHorizontalScrollValue = ui->taskTable->horizontalScrollBar()->value();
+    currVerticalScrollValue = ui->taskTable->verticalScrollBar()->value();
     ui->taskTable->selectRow(currSelectedRow);
-    ui->taskTable->verticalScrollBar()->setValue(currScrollValue);
+    ui->taskTable->horizontalScrollBar()->setValue(currHorizontalScrollValue);
+    ui->taskTable->verticalScrollBar()->setValue(currVerticalScrollValue);
 }
 
 void MainWindow::sortTable() {
@@ -591,14 +596,14 @@ void MainWindow::on_selectionChanged(const QItemSelection &selected, const QItem
 
 void MainWindow::on_killButton_clicked() {
     int pid = model->item(currSelectedRow, 0)->data(Qt::DisplayRole).toInt();
-    killDialog = new KillDialog(pid, taskInfoDict[pid].comm, this);
+    killDialog = new KillDialog(pid, taskInfoDict[pid]->comm, this);
     killDialog->setModal(true);
     killDialog->show();
 }
 
 void MainWindow::on_niceButton_clicked() {
     int pid = model->item(currSelectedRow, 0)->data(Qt::DisplayRole).toInt();
-    niceDialog = new NiceDialog(pid, taskInfoDict[pid].comm, taskInfoDict[pid].ni, this);
+    niceDialog = new NiceDialog(pid, taskInfoDict[pid]->comm, taskInfoDict[pid]->ni, this);
     niceDialog->setModal(true);
     niceDialog->show();
 }

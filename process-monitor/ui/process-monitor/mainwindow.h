@@ -40,7 +40,7 @@ private:
     Ui::MainWindow *ui;
     QTimer *timer;
     QStandardItemModel *model;
-    std::unordered_map<int, TaskInfo> taskInfoDict;
+    std::unordered_map<int, TaskInfo *> taskInfoDict;
     unsigned long mem_total, mem_used, mem_free, mem_shared, mem_buff, mem_cache, mem_available;
     unsigned long swap_total, swap_used, swap_free;
     int taskTotal, taskRunning, taskSleeping, taskStopped, taskZombie;
@@ -66,7 +66,8 @@ private:
     NiceDialog *niceDialog;
 
     int currSelectedRow = 0;
-    int currScrollValue = 0;
+    int currVerticalScrollValue = 0;
+    int currHorizontalScrollValue = 0;
 
     const int gcInterval = 10;
     int gcCount = 0;
