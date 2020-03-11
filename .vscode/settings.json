@@ -3,6 +3,19 @@
         "atomic": "c",
         "*.tcc": "c",
         "fstream": "c",
-        "sstream": "c"
+        "sstream": "c",
+        "fs.h": "c",
+        "init.h": "c",
+        "types.h": "c",
+        "compiler.h": "c",
+        "module.h": "c",
+        "kernel.h": "c",
+        "uaccess.h": "c",
+        "sched.h": "c",
+        "sysinfo.h": "c",
+        "device.h": "c",
+        "memory": "c",
+        "condition_variable": "c",
+        "kdev_t.h": "c"
     }
 }

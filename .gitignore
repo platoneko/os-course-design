@@ -1,1 +1,5 @@
 bin/
+process-monitor/ui/build-process-monitor-Desktop-Debug
+
+*.ko
+*.o
