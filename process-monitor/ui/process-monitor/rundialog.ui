@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>KillDialog</class>
- <widget class="QDialog" name="KillDialog">
+ <class>RunDialog</class>
+ <widget class="QDialog" name="RunDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -9,12 +9,6 @@
     <width>300</width>
     <height>150</height>
    </rect>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>300</width>
-    <height>150</height>
-   </size>
   </property>
   <property name="windowTitle">
    <string>Dialog</string>
@@ -33,21 +27,17 @@
     <number>20</number>
    </property>
    <item>
-    <widget class="QLabel" name="promptLabel">
+    <widget class="QLabel" name="label">
      <property name="text">
-      <string>Sure to kill task with pid  ?</string>
+      <string>Run command:</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
      </property>
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="commLabel">
-     <property name="text">
-      <string>()</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
-     </property>
-    </widget>
+    <widget class="QLineEdit" name="commandEdit"/>
    </item>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">

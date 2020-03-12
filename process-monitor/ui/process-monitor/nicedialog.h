@@ -1,9 +1,9 @@
 #ifndef NICEDIALOG_H
 #define NICEDIALOG_H
 
+#include "global.h"
 #include <QDialog>
 
-#define MAXLINE 1024
 
 namespace Ui {
 class NiceDialog;

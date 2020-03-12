@@ -14,6 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
 add_executable(process-monitor
+  global.h
   main.cpp
   mainwindow.cpp
   mainwindow.h
@@ -28,6 +29,9 @@ add_executable(process-monitor
   nicedialog.cpp
   nicedialog.h
   nicedialog.ui
+  rundialog.cpp
+  rundialog.h
+  rundialog.ui
 )
 
 target_link_libraries(process-monitor PRIVATE Qt5::Widgets)

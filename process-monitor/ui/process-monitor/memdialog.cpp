@@ -3,8 +3,6 @@
 
 #include <QDebug>
 
-#define MAXLINE 1024
-
 MemDialog::MemDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::MemDialog)

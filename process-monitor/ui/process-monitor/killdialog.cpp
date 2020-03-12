@@ -6,8 +6,6 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 
-#define MAXLINE 1024
-
 KillDialog::KillDialog(const int pid, const std::string comm, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::KillDialog),

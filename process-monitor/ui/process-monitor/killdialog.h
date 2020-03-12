@@ -1,9 +1,9 @@
 #ifndef KILLDIALOG_H
 #define KILLDIALOG_H
 
+#include "global.h"
 #include <QDialog>
 
-#define MAXLINE 1024
 
 namespace Ui {
 class KillDialog;

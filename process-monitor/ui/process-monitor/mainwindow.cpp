@@ -1,7 +1,6 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
-#define MAXLINE 1024
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
@@ -24,7 +23,7 @@ MainWindow::MainWindow(QWidget *parent)
     sortMethod = S_A;
 
     connect(ui->taskTable->horizontalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(on_sectionClicked(int)));
-    connect(ui->memDetailButton, SIGNAL(clicked()), this, SLOT(on_memDetailButton_clicked()));
+    // connect(ui->memDetailButton, SIGNAL(clicked()), this, SLOT(on_memDetailButton_clicked()));
     connect(ui->taskTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::on_selectionChanged);
     update();
     timer = new QTimer(this);
@@ -568,6 +567,7 @@ void MainWindow::sortTable() {
     }
 }
 
+/*
 void MainWindow::on_memDetailButton_clicked() {
     if (!isMemDialogActive) {
         isMemDialogActive = true;
@@ -579,16 +579,21 @@ void MainWindow::on_memDetailButton_clicked() {
         connect(memDialog, &MemDialog::closeSignal, this, &MainWindow::on_memDialog_closed);
     }
 }
+*/
 
+/*
 void MainWindow::sendMemInfo() {
     memDialog->update(mem_total, mem_free, mem_used, mem_buff, mem_cache, mem_available, swap_total, swap_free, swap_used);
 }
+*/
 
+/*
 void MainWindow::on_memDialog_closed() {
     disconnect(timer, &QTimer::timeout, this, &MainWindow::sendMemInfo);
     disconnect(memDialog, &MemDialog::closeSignal, this, &MainWindow::on_memDialog_closed);
     isMemDialogActive = false;
 }
+*/
 
 void MainWindow::on_selectionChanged(const QItemSelection &selected, const QItemSelection &deselected) {
     currSelectedRow = selected.indexes().first().row();
@@ -606,4 +611,10 @@ void MainWindow::on_niceButton_clicked() {
     niceDialog = new NiceDialog(pid, taskInfoDict[pid]->comm, taskInfoDict[pid]->ni, this);
     niceDialog->setModal(true);
     niceDialog->show();
+}
+
+void MainWindow::on_runButton_clicked() {
+    runDialog = new RunDialog(this);
+    runDialog->setModal(true);
+    runDialog->show();
 }

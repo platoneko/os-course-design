@@ -1,6 +1,7 @@
 #ifndef MEMDIALOG_H
 #define MEMDIALOG_H
 
+#include "global.h"
 #include <QDialog>
 
 
