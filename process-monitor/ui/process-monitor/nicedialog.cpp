@@ -1,10 +1,6 @@
 #include "nicedialog.h"
 #include "ui_nicedialog.h"
 
-#include <QMessageBox>
-
-#include <sys/resource.h>
-
 
 NiceDialog::NiceDialog(int pid, const std::string comm, int prevNice, QWidget *parent) :
     QDialog(parent),

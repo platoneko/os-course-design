@@ -10,6 +10,13 @@ MainWindow::MainWindow(QWidget *parent)
     dir_ptr = opendir("/proc");
     chdir("/proc");
 
+    FILE *fp;
+    char pid_max[MAXLINE];
+    fp = fopen("sys/kernel/pid_max", "r");
+    fgets(pid_max, MAXLINE, fp);
+    fclose(fp);
+    this->pid_max = atoi(pid_max);
+
     ui->setupUi(this);
     this->setWindowTitle("Process Monitor");
 
@@ -19,9 +26,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->taskTable->setModel(model);
     initTableModel();
 
-    taskTotal = taskRunning = taskSleeping = taskStopped = taskZombie = 0;
-    sortMethod = S_A;
-
     connect(ui->taskTable->horizontalHeader(), SIGNAL(sectionClicked(int)), this, SLOT(on_sectionClicked(int)));
     // connect(ui->memDetailButton, SIGNAL(clicked()), this, SLOT(on_memDetailButton_clicked()));
     connect(ui->taskTable->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::on_selectionChanged);
@@ -29,6 +33,8 @@ MainWindow::MainWindow(QWidget *parent)
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &MainWindow::update);
     timer->start(3000);
+
+    ui->searchModeLabel->setVisible(false);
 }
 
 MainWindow::~MainWindow()
@@ -38,44 +44,48 @@ MainWindow::~MainWindow()
 }
 
 void MainWindow::update() {
+    updateFree.acquire();
     updateLoadAverage();
     updateUptime();
     updateMem();
     updateTaskInfo();
-    displayTaskInfo();
+    updateTaskTable();
+    updateFree.release();
 }
 
 void MainWindow::initTableModel() {
-    model->setColumnCount(12);
-    model->setHeaderData(0, Qt::Horizontal, "PID");
-    model->setHeaderData(1, Qt::Horizontal, "USER");
-    model->setHeaderData(2, Qt::Horizontal, "Command");
-    model->setHeaderData(3, Qt::Horizontal, "PRI");
-    model->setHeaderData(4, Qt::Horizontal, "NI");
-    model->setHeaderData(5, Qt::Horizontal, "VIRT");
-    model->setHeaderData(6, Qt::Horizontal, "RES");
-    model->setHeaderData(7, Qt::Horizontal, "SHR");
-    model->setHeaderData(8, Qt::Horizontal, "S");
-    model->setHeaderData(9, Qt::Horizontal, "CPU%");
-    model->setHeaderData(10, Qt::Horizontal, "MEM%");
-    model->setHeaderData(11, Qt::Horizontal, "TIME+");
+    model->setColumnCount(COLUMN_NUM);
+    model->setHeaderData(PID_COLUMN, Qt::Horizontal, "PID");
+    model->setHeaderData(PPID_COLUMN, Qt::Horizontal, "PPID");
+    model->setHeaderData(USER_COLUMN, Qt::Horizontal, "USER");
+    model->setHeaderData(COMMAND_COLUMN, Qt::Horizontal, "NAME");
+    model->setHeaderData(PRI_COLUMN, Qt::Horizontal, "PRI");
+    model->setHeaderData(NI_COLUMN, Qt::Horizontal, "NI");
+    model->setHeaderData(VIRT_COLUMN, Qt::Horizontal, "VIRT");
+    model->setHeaderData(RES_COLUMN, Qt::Horizontal, "RES");
+    model->setHeaderData(SHR_COLUMN, Qt::Horizontal, "SHR");
+    model->setHeaderData(S_COLUMN, Qt::Horizontal, "S");
+    model->setHeaderData(CPU_COLUMN, Qt::Horizontal, "CPU%");
+    model->setHeaderData(MEM_COLUMN, Qt::Horizontal, "MEM%");
+    model->setHeaderData(TIME_COLUMN, Qt::Horizontal, "TIME+");
 
     ui->taskTable->verticalHeader()->hide();
     ui->taskTable->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
     ui->taskTable->setSortingEnabled(false);
 
-    ui->taskTable->setColumnWidth(0,60);
-    ui->taskTable->setColumnWidth(1,120);
-    ui->taskTable->setColumnWidth(2,200);
-    ui->taskTable->setColumnWidth(3,60);
-    ui->taskTable->setColumnWidth(4,60);
-    ui->taskTable->setColumnWidth(5,80);
-    ui->taskTable->setColumnWidth(6,80);
-    ui->taskTable->setColumnWidth(7,80);
-    ui->taskTable->setColumnWidth(8,30);
-    ui->taskTable->setColumnWidth(9,80);
-    ui->taskTable->setColumnWidth(10,80);
-    ui->taskTable->setColumnWidth(11,150);
+    ui->taskTable->setColumnWidth(PID_COLUMN,60);
+    ui->taskTable->setColumnWidth(PPID_COLUMN,60);
+    ui->taskTable->setColumnWidth(USER_COLUMN,80);
+    ui->taskTable->setColumnWidth(COMMAND_COLUMN,160);
+    ui->taskTable->setColumnWidth(PRI_COLUMN,60);
+    ui->taskTable->setColumnWidth(NI_COLUMN,60);
+    ui->taskTable->setColumnWidth(VIRT_COLUMN,80);
+    ui->taskTable->setColumnWidth(RES_COLUMN,80);
+    ui->taskTable->setColumnWidth(SHR_COLUMN,80);
+    ui->taskTable->setColumnWidth(S_COLUMN,30);
+    ui->taskTable->setColumnWidth(CPU_COLUMN,80);
+    ui->taskTable->setColumnWidth(MEM_COLUMN,80);
+    ui->taskTable->setColumnWidth(TIME_COLUMN,150);
 }
 
 void MainWindow::updateLoadAverage() {
@@ -149,20 +159,21 @@ void MainWindow::updateTaskInfo() {
     struct dirent *dir_entry;
     char buf[BUFSIZ], line[MAXLINE];
 
-    int uid;
-
-    int pid, ppid, pgrp, session, tty_nr, tpgid, priority, nice;
+    unsigned short uid, pid, ppid;
+    char priority, nice;
+    int  pgrp, session, tty_nr, tpgid;
     unsigned long minflt, cminflt, majflt, cmajflt, utime, stime;
     long cutime, cstime, num_threads;
     unsigned int flags;
     char state, comm[MAXLINE];
 
-    char command[MAXLINE];
+    // char command[MAXLINE];
 
     unsigned long virt, res, shr;
 
     float cpuUsed = 0.0;
     taskTotal = taskRunning = taskSleeping = taskStopped = taskZombie = 0;
+    matchedTaskTotal = 0;
     while ((dir_entry = readdir(dir_ptr))) {
         if (isNumeric(dir_entry->d_name)) {
             ++taskTotal;
@@ -172,11 +183,11 @@ void MainWindow::updateTaskInfo() {
                 fgets(buf, BUFSIZ, fp);
             }
             fclose(fp);
-            sscanf(buf, "%s%d", line, &uid);
+            sscanf(buf, "%s%hu", line, &uid);
 
             fp = fopen("stat", "r");
             fgets(buf, BUFSIZ, fp);
-            sscanf(buf, "%d%s %c%d%d%d%d%d%u%lu%lu%lu%lu%lu%lu%ld%ld%d%d%ld",
+            sscanf(buf, "%hu%s %c%hu%d%d%d%d%u%lu%lu%lu%lu%lu%lu%ld%ld%c%c%ld",
             &pid, comm, &state,
             &ppid, &pgrp, &session, &tty_nr, &tpgid, &flags,
             &minflt, &cminflt, &majflt, &cmajflt,
@@ -193,11 +204,13 @@ void MainWindow::updateTaskInfo() {
             res <<= 2;
             shr <<= 2;
 
+            /*
             fp = fopen("cmdline", "r");
             memset(buf, 0, BUFSIZ);
             fgets(buf, BUFSIZ, fp);
             fclose(fp);
             formatCommand(buf, command);
+            */
 
             switch (state) {
             case 'R':
@@ -224,6 +237,7 @@ void MainWindow::updateTaskInfo() {
 
             if (taskInfoDict.count(pid)) {
                 TaskInfo *taskInfo = taskInfoDict[pid];
+                taskInfo->ppid = ppid;
                 taskInfo->uid = uid;
                 taskInfo->pri = priority;
                 taskInfo->ni = nice;
@@ -234,34 +248,46 @@ void MainWindow::updateTaskInfo() {
                 taskInfo->cpu = float(utime+stime-taskInfo->time)/3;
                 taskInfo->mem = float(res)/mem_total*100;
                 taskInfo->time = utime+stime;
-                taskInfo->command = command;
-                taskInfo->comm = comm;
-                taskInfo->dirty = 1;
+                taskInfo->comm = std::string(comm, 1, strlen(comm)-2);
+                taskInfo->valid = true;
                 cpuUsed += taskInfo->cpu;
+                if (searchMode && strstr(comm, searchedCommand.c_str())) {
+                    taskInfo->matched = true;
+                    ++matchedTaskTotal;
+                } else {
+                    taskInfo->matched = false;
+                }
             } else {
-                taskInfoDict[pid] = new TaskInfo(pid, uid, priority, nice,
+                taskInfoDict[pid] = new TaskInfo(pid, ppid, uid, priority, nice,
                                                  virt, res, shr,
                                                  state, float(res)/mem_total,
                                                  utime+stime,
-                                                 command, comm);
+                                                 std::string(comm, 1, strlen(comm)-2));
+                if (searchMode && strstr(comm, searchedCommand.c_str())) {
+                    taskInfoDict[pid]->matched = true;
+                    ++matchedTaskTotal;
+                } else {
+                    taskInfoDict[pid]->matched = false;
+                }
             }
             chdir("..");
         }
     }
     rewinddir(dir_ptr);
 
-    ++gcCount;
-    if (gcCount == gcInterval) {
+    ++gcEra;
+    /* garbage colletion */
+    if (gcEra == gcInterval) {
         auto it = taskInfoDict.begin();
         while (it != taskInfoDict.end()) {
-            if (it->second->dirty == 0) {
+            if (!it->second->valid) {
                 delete it->second;
                 it = taskInfoDict.erase(it);
             } else {
                 it++;
             }
         }
-        gcCount = 0;
+        gcEra = 0;
     }
     sprintf(buf, "Tasks: %4d total, %4d running, %4d sleeping, %4d stopped, %4d zombie",
             taskTotal, taskRunning, taskSleeping, taskStopped, taskZombie);
@@ -269,53 +295,67 @@ void MainWindow::updateTaskInfo() {
     ui->cpuBar->setValue(int(cpuUsed));
 }
 
-void MainWindow::displayTaskInfo() {
+void MainWindow::updateTaskTable() {
+    if (searchMode && matchedTaskTotal == 0) {
+        searchMode = false;
+        ui->searchModeLabel->setVisible(false);
+        char msg[MAXLINE];
+        sprintf(msg, "No task command contains '%s'!", searchedCommand.c_str());
+        QMessageBox::warning(this, "Search", msg);
+    }
+
     int rowCount = model->rowCount();
-    if (rowCount < taskTotal) {
-        for (int i = rowCount; i < taskTotal; ++i) {
-            for (int j = 0; j < 12; ++j) {
+    int total;
+    if (searchMode) {
+        total = matchedTaskTotal;
+    } else {
+        total = taskTotal;
+    }
+    model->setRowCount(total);
+    if (rowCount < total) {
+        for (int i = rowCount; i < total; ++i) {
+            for (int j = 0; j < COLUMN_NUM; ++j) {
                 model->setItem(i, j, new TableItem());
                 model->item(i, j)->setEditable(false);
             }
         }
     }
-
-    model->setRowCount(taskTotal);
     int row = 0;
     char s_virt[MAXLINE], s_res[MAXLINE], s_shr[MAXLINE], s_time[MAXLINE];
     for (auto &taskInfo: taskInfoDict) {
-        if (taskInfo.second->dirty) {
-            model->item(row, 0)->setData(taskInfo.second->pid, Qt::DisplayRole);
-            model->item(row, 1)->setData(getpwuid(uid_t(taskInfo.second->uid))->pw_name, Qt::DisplayRole);
-            if (taskInfo.second->command.length() == 0) {
-                model->item(row, 2)->setData(taskInfo.second->comm.c_str(), Qt::DisplayRole);
-            } else {
-                model->item(row, 2)->setData(taskInfo.second->command.c_str(), Qt::DisplayRole);
-            }
-            model->item(row, 3)->setData(taskInfo.second->pri, Qt::DisplayRole);
-            model->item(row, 4)->setData(taskInfo.second->ni, Qt::DisplayRole);
+        if (taskInfo.second->valid && (!searchMode || taskInfo.second->matched)) {
+            model->item(row, PID_COLUMN)->setData(taskInfo.second->pid, Qt::DisplayRole);
+            model->item(row, PPID_COLUMN)->setData(taskInfo.second->ppid, Qt::DisplayRole);
+            model->item(row, USER_COLUMN)->setData(getpwuid(uid_t(taskInfo.second->uid))->pw_name, Qt::DisplayRole);
+            model->item(row, COMMAND_COLUMN)->setData(taskInfo.second->comm.c_str(), Qt::DisplayRole);
+            model->item(row, PRI_COLUMN)->setData(taskInfo.second->pri, Qt::DisplayRole);
+            model->item(row, NI_COLUMN)->setData(taskInfo.second->ni, Qt::DisplayRole);
             formatSize(taskInfo.second->virt, s_virt);
-            model->item(row, 5)->setData(s_virt, Qt::DisplayRole);
+            model->item(row, VIRT_COLUMN)->setData(s_virt, Qt::DisplayRole);
             formatSize(taskInfo.second->res, s_res);
-            model->item(row, 6)->setData(s_res, Qt::DisplayRole);
+            model->item(row, RES_COLUMN)->setData(s_res, Qt::DisplayRole);
             formatSize(taskInfo.second->shr, s_shr);
-            model->item(row, 7)->setData(s_shr, Qt::DisplayRole);
-            model->item(row, 8)->setData(QChar(taskInfo.second->s), Qt::DisplayRole);
-            model->item(row, 9)->setData(QString::number(taskInfo.second->cpu, 'f', 1), Qt::DisplayRole);
-            model->item(row, 10)->setData(QString::number(taskInfo.second->mem, 'f', 1), Qt::DisplayRole);
+            model->item(row, SHR_COLUMN)->setData(s_shr, Qt::DisplayRole);
+            model->item(row, S_COLUMN)->setData(QChar(taskInfo.second->s), Qt::DisplayRole);
+            model->item(row, CPU_COLUMN)->setData(QString::number(taskInfo.second->cpu, 'f', 1), Qt::DisplayRole);
+            model->item(row, MEM_COLUMN)->setData(QString::number(taskInfo.second->mem, 'f', 1), Qt::DisplayRole);
             formatTime(taskInfo.second->time, s_time);
-            model->item(row, 11)->setData(s_time, Qt::DisplayRole);
-            model->item(row, 5)->setData(qlonglong(taskInfo.second->virt), Qt::UserRole);
-            model->item(row, 6)->setData(qlonglong(taskInfo.second->res), Qt::UserRole);
-            model->item(row, 7)->setData(qlonglong(taskInfo.second->shr), Qt::UserRole);
-            model->item(row, 11)->setData(qlonglong(taskInfo.second->time), Qt::UserRole);
-            model->item(row, 9)->setData(taskInfo.second->cpu, Qt::UserRole);
-            model->item(row, 10)->setData(taskInfo.second->mem, Qt::UserRole);
-            model->item(row, 8)->setData(statePriority.at(taskInfo.second->s), Qt::UserRole);
-            taskInfo.second->dirty = 0;
+            model->item(row, TIME_COLUMN)->setData(s_time, Qt::DisplayRole);
+            model->item(row, VIRT_COLUMN)->setData(qlonglong(taskInfo.second->virt), Qt::UserRole);
+            model->item(row, RES_COLUMN)->setData(qlonglong(taskInfo.second->res), Qt::UserRole);
+            model->item(row, SHR_COLUMN)->setData(qlonglong(taskInfo.second->shr), Qt::UserRole);
+            model->item(row, TIME_COLUMN)->setData(qlonglong(taskInfo.second->time), Qt::UserRole);
+            model->item(row, CPU_COLUMN)->setData(taskInfo.second->cpu, Qt::UserRole);
+            model->item(row, MEM_COLUMN)->setData(taskInfo.second->mem, Qt::UserRole);
+            model->item(row, S_COLUMN)->setData(statePriority.at(taskInfo.second->s), Qt::UserRole);
+            taskInfo.second->valid = false;
             ++row;
         }
     }
+    if (searchMode) {
+        ui->searchModeLabel->setVisible(true);
+    }
+
     sortTable();
     currVerticalScrollValue = ui->taskTable->verticalScrollBar()->value();
     currHorizontalScrollValue = ui->taskTable->horizontalScrollBar()->value();
@@ -374,95 +414,102 @@ void MainWindow::formatTime(unsigned long l_time, char *s_time) {
 void MainWindow::on_sectionClicked(int index) {
     switch (index) {
     case 0:
-        if (sortMethod == PID_A) {
-            sortMethod = PID_D;
+        if (sortMethod == PID_ASC) {
+            sortMethod = PID_DES;
         } else {
-            sortMethod = PID_A;
+            sortMethod = PID_ASC;
         }
         break;
     case 1:
-        if (sortMethod == USER_A) {
-            sortMethod = USER_D;
+        if (sortMethod == PPID_ASC) {
+            sortMethod = PPID_DES;
         } else {
-            sortMethod = USER_A;
+            sortMethod = PPID_ASC;
         }
         break;
     case 2:
-        if (sortMethod == COMMAND_A) {
-            sortMethod = COMMAND_D;
+        if (sortMethod == USER_ASC) {
+            sortMethod = USER_DES;
         } else {
-            sortMethod = COMMAND_A;
+            sortMethod = USER_ASC;
         }
         break;
     case 3:
-        if (sortMethod == PRI_A) {
-            sortMethod = PRI_D;
+        if (sortMethod == COMMAND_ASC) {
+            sortMethod = COMMAND_DES;
         } else {
-            sortMethod = PRI_A;
+            sortMethod = COMMAND_ASC;
         }
         break;
     case 4:
-        if (sortMethod == NI_A) {
-            sortMethod = NI_D;
+        if (sortMethod == PRI_ASC) {
+            sortMethod = PRI_DES;
         } else {
-            sortMethod = NI_A;
+            sortMethod = PRI_ASC;
         }
         break;
     case 5:
-        if (sortMethod == VIRT_D) {
-            sortMethod = VIRT_A;
+        if (sortMethod == NI_ASC) {
+            sortMethod = NI_DES;
         } else {
-            sortMethod = VIRT_D;
+            sortMethod = NI_ASC;
         }
         break;
     case 6:
-        if (sortMethod == RES_D) {
-            sortMethod = RES_A;
+        if (sortMethod == VIRT_DES) {
+            sortMethod = VIRT_ASC;
         } else {
-            sortMethod = RES_D;
+            sortMethod = VIRT_DES;
         }
         break;
     case 7:
-        if (sortMethod == SHR_D) {
-            sortMethod = SHR_A;
+        if (sortMethod == RES_DES) {
+            sortMethod = RES_ASC;
         } else {
-            sortMethod = SHR_D;
+            sortMethod = RES_DES;
         }
         break;
     case 8:
-        if (sortMethod == S_A) {
-            sortMethod = S_D;
+        if (sortMethod == SHR_DES) {
+            sortMethod = SHR_ASC;
         } else {
-            sortMethod = S_A;
+            sortMethod = SHR_DES;
         }
         break;
     case 9:
-        if (sortMethod == CPU_D) {
-            sortMethod = CPU_A;
+        if (sortMethod == S_ASC) {
+            sortMethod = S_DES;
         } else {
-            sortMethod = CPU_D;
+            sortMethod = S_ASC;
         }
         break;
     case 10:
-        if (sortMethod == MEM_D) {
-            sortMethod = MEM_A;
+        if (sortMethod == CPU_DES) {
+            sortMethod = CPU_ASC;
         } else {
-            sortMethod = MEM_D;
+            sortMethod = CPU_DES;
         }
         break;
     case 11:
-        if (sortMethod == TIME_D) {
-            sortMethod = TIME_A;
+        if (sortMethod == MEM_DES) {
+            sortMethod = MEM_ASC;
         } else {
-            sortMethod = TIME_D;
+            sortMethod = MEM_DES;
+        }
+        break;
+    case 12:
+        if (sortMethod == TIME_DES) {
+            sortMethod = TIME_ASC;
+        } else {
+            sortMethod = TIME_DES;
         }
         break;
     default:
         break;
     }
     sortTable();
-    currHorizontalScrollValue = ui->taskTable->horizontalScrollBar()->value();
     currVerticalScrollValue = ui->taskTable->verticalScrollBar()->value();
+    currHorizontalScrollValue = ui->taskTable->horizontalScrollBar()->value();
     ui->taskTable->selectRow(currSelectedRow);
     ui->taskTable->horizontalScrollBar()->setValue(currHorizontalScrollValue);
     ui->taskTable->verticalScrollBar()->setValue(currVerticalScrollValue);
@@ -470,99 +517,111 @@ void MainWindow::on_sectionClicked(int index) {
 
 void MainWindow::sortTable() {
     switch (sortMethod) {
-    case PID_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
+    case PID_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
         break;
-    case PID_D:
-        ui->taskTable->sortByColumn(0, Qt::DescendingOrder);
+    case PID_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::DescendingOrder);
         break;
-    case USER_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(1, Qt::AscendingOrder);
+    case PPID_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(PPID_COLUMN, Qt::AscendingOrder);
         break;
-    case USER_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(1, Qt::DescendingOrder);
+    case PPID_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(PPID_COLUMN, Qt::DescendingOrder);
         break;
-    case COMMAND_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(2, Qt::AscendingOrder);
+    case USER_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(USER_COLUMN, Qt::AscendingOrder);
         break;
-    case COMMAND_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(2, Qt::DescendingOrder);
+    case USER_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(USER_COLUMN, Qt::DescendingOrder);
         break;
-    case PRI_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(3, Qt::AscendingOrder);
+    case COMMAND_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(COMMAND_COLUMN, Qt::AscendingOrder);
         break;
-    case PRI_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(3, Qt::DescendingOrder);
+    case COMMAND_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(COMMAND_COLUMN, Qt::DescendingOrder);
         break;
-    case NI_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(4, Qt::AscendingOrder);
+    case PRI_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(PRI_COLUMN, Qt::AscendingOrder);
         break;
-    case NI_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(4, Qt::DescendingOrder);
+    case PRI_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(PRI_COLUMN, Qt::DescendingOrder);
         break;
-    case VIRT_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(5, Qt::AscendingOrder);
+    case NI_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(NI_COLUMN, Qt::AscendingOrder);
         break;
-    case VIRT_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(5, Qt::DescendingOrder);
+    case NI_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(NI_COLUMN, Qt::DescendingOrder);
         break;
-    case RES_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(6, Qt::AscendingOrder);
+    case VIRT_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(VIRT_COLUMN, Qt::AscendingOrder);
         break;
-    case RES_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(6, Qt::DescendingOrder);
+    case VIRT_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(VIRT_COLUMN, Qt::DescendingOrder);
         break;
-    case SHR_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(7, Qt::AscendingOrder);
+    case RES_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(RES_COLUMN, Qt::AscendingOrder);
         break;
-    case SHR_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(7, Qt::DescendingOrder);
+    case RES_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(RES_COLUMN, Qt::DescendingOrder);
         break;
-    case S_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(8, Qt::AscendingOrder);
+    case SHR_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(SHR_COLUMN, Qt::AscendingOrder);
         break;
-    case S_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(8, Qt::DescendingOrder);
+    case SHR_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(SHR_COLUMN, Qt::DescendingOrder);
         break;
-    case CPU_A:
-        ui->taskTable->sortByColumn(9, Qt::AscendingOrder);
+    case S_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(S_COLUMN, Qt::AscendingOrder);
         break;
-    case CPU_D:
-        ui->taskTable->sortByColumn(9, Qt::DescendingOrder);
+    case S_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(S_COLUMN, Qt::DescendingOrder);
         break;
-    case MEM_A:
-        ui->taskTable->sortByColumn(10, Qt::AscendingOrder);
+    case CPU_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(CPU_COLUMN, Qt::AscendingOrder);
         break;
-    case MEM_D:
-        ui->taskTable->sortByColumn(10, Qt::DescendingOrder);
+    case CPU_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(CPU_COLUMN, Qt::DescendingOrder);
         break;
-    case TIME_A:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(11, Qt::AscendingOrder);
+    case MEM_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(MEM_COLUMN, Qt::AscendingOrder);
         break;
-    case TIME_D:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(11, Qt::DescendingOrder);
+    case MEM_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(MEM_COLUMN, Qt::DescendingOrder);
+        break;
+    case TIME_ASC:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(TIME_COLUMN, Qt::AscendingOrder);
+        break;
+    case TIME_DES:
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(TIME_COLUMN, Qt::DescendingOrder);
         break;
     default:
-        ui->taskTable->sortByColumn(0, Qt::AscendingOrder);
-        ui->taskTable->sortByColumn(8, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(PID_COLUMN, Qt::AscendingOrder);
+        ui->taskTable->sortByColumn(S_COLUMN, Qt::AscendingOrder);
         break;
     }
 }
@@ -597,6 +656,7 @@ void MainWindow::on_memDialog_closed() {
 
 void MainWindow::on_selectionChanged(const QItemSelection &selected, const QItemSelection &deselected) {
     currSelectedRow = selected.indexes().first().row();
+    // QMessageBox::warning(this, "selection", std::to_string(currSelectedRow).c_str());
 }
 
 void MainWindow::on_killButton_clicked() {
@@ -617,4 +677,64 @@ void MainWindow::on_runButton_clicked() {
     runDialog = new RunDialog(this);
     runDialog->setModal(true);
     runDialog->show();
+}
+
+void MainWindow::on_searchButton_clicked() {
+    searchDialog = new SearchDialog(pid_max, this);
+    connect(searchDialog, &SearchDialog::sendPid, this, &MainWindow::searchPid);
+    connect(searchDialog, &SearchDialog::sendCommand, this, &MainWindow::searchCommand);
+    connect(searchDialog, &SearchDialog::closeSignal, this, &MainWindow::on_searchDialog_closed);
+    searchDialog->setModal(true);
+    searchDialog->show();
+}
+
+void MainWindow::searchPid(int pid) {
+    bool pidExist = false;
+    int total;
+    if (searchMode) {
+        total = matchedTaskTotal;
+    } else {
+        total = taskTotal;
+    }
+    for (int i = 0; i < total; ++i) {
+        if (model->item(i, 0)->data(Qt::DisplayRole) == pid) {
+            ui->taskTable->selectRow(i);
+            ui->taskTable->scrollTo(ui->taskTable->selectionModel()->selectedIndexes()[0]);
+            pidExist = true;
+            break;
+        }
+    }
+    if (!pidExist) {
+        char msg[MAXLINE];
+        sprintf(msg, "Pid %d doesn't exist!", pid);
+        QMessageBox::warning(this, "Search", msg);
+    }
+}
+
+void MainWindow::searchCommand(const std::string command) {
+     searchedCommand = command;
+     searchMode = true;
+     // ui->searchModeLabel->setVisible(true);
+     timer->stop();
+     update();
+     timer->start(3000);
+}
+
+void MainWindow::on_searchDialog_closed() {
+    disconnect(searchDialog, &SearchDialog::sendPid, this, &MainWindow::searchPid);
+    disconnect(searchDialog, &SearchDialog::sendCommand, this, &MainWindow::searchCommand);
+    disconnect(searchDialog, &SearchDialog::closeSignal, this, &MainWindow::on_searchDialog_closed);
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *event) {
+    if(event->key() == Qt::Key_Escape) {
+        if (searchMode) {
+            timer->stop();
+            ui->searchModeLabel->setVisible(false);
+            searchMode = false;
+            update();
+            timer->start(3000);
+        }
+    }
+
 }

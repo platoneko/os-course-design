@@ -32,6 +32,11 @@ add_executable(process-monitor
   rundialog.cpp
   rundialog.h
   rundialog.ui
+  searchdialog.cpp
+  searchdialog.h
+  searchdialog.ui
+  utils.cpp
+  utils.h
 )
 
 target_link_libraries(process-monitor PRIVATE Qt5::Widgets)

@@ -4,6 +4,11 @@
 #include "global.h"
 
 #include <QDialog>
+#include <QMessageBox>
+
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/shm.h>
 
 namespace Ui {
 class RunDialog;

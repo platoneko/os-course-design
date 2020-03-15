@@ -1,12 +1,6 @@
 #include "rundialog.h"
 #include "ui_rundialog.h"
 
-#include <QMessageBox>
-
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/shm.h>
-
 
 RunDialog::RunDialog(QWidget *parent) :
     QDialog(parent),

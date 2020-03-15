@@ -2,8 +2,11 @@
 #define NICEDIALOG_H
 
 #include "global.h"
-#include <QDialog>
 
+#include <QDialog>
+#include <QMessageBox>
+
+#include <sys/resource.h>
 
 namespace Ui {
 class NiceDialog;

@@ -4,10 +4,11 @@
 #include <string>
 
 struct TaskInfo {
-    int pid;
-    int uid;
-    int pri;
-    int ni;
+    unsigned short pid;
+    unsigned short ppid;
+    unsigned short uid;
+    char pri;
+    char ni;
     unsigned long virt;
     unsigned long res;
     unsigned long shr;
@@ -15,19 +16,19 @@ struct TaskInfo {
     float cpu;
     float mem;
     unsigned long time;
-    std::string command;
     std::string comm;
-    unsigned char dirty;
+    bool valid = true;
+    bool matched = false;
     TaskInfo() {}
-    TaskInfo(int pid, int uid, int pri, int ni,
+    TaskInfo(unsigned short pid, unsigned short ppid, unsigned short uid, char pri, char ni,
              unsigned long virt,
              unsigned long res,
              unsigned long shr,
              char s, float mem,
              unsigned long time,
-             std::string command,
              std::string comm):
         pid(pid),
+        ppid(ppid),
         uid(uid),
         pri(pri),
         ni(ni),
@@ -38,9 +39,7 @@ struct TaskInfo {
         cpu(0),
         mem(mem),
         time(time),
-        command(command),
-        comm(comm),
-        dirty(1) {
+        comm(comm) {
     }
 };
 #endif // TASKINFO_H
