@@ -6,6 +6,7 @@
 #include "nicedialog.h"
 #include "rundialog.h"
 #include "searchdialog.h"
+#include "shutdowndialog.h"
 #include "global.h"
 
 #include <QMainWindow>
@@ -21,7 +22,12 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <pwd.h>
+#include <grp.h>
 #include <dirent.h>
+#include <sys/sysinfo.h>
+#include <utmp.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 
 #include <cstring>
 #include <unordered_map>
@@ -76,9 +82,9 @@ private:
     QTimer *timer;
     QStandardItemModel *model;
     std::unordered_map<int, TaskInfo *> taskInfoDict;
-    unsigned long mem_total = 0, mem_used = 0, mem_free = 0, mem_shared = 0, mem_buff = 0, mem_cache = 0, mem_available = 0;
-    unsigned long swap_total = 0, swap_used = 0, swap_free = 0;
+    struct sysinfo currentSysinfo;
     int taskTotal = 0, taskRunning = 0, taskSleeping = 0, taskStopped = 0, taskZombie = 0;
+    float cpuUsed = 0.0;
     int matchedTaskTotal = 0;
     DIR *dir_ptr;
     unsigned char sortMethod = S_ASC;
@@ -90,6 +96,7 @@ private:
     NiceDialog *niceDialog;
     RunDialog *runDialog;
     SearchDialog *searchDialog;
+    ShutdownDialog *shutdownDialog;
 
     int pid_max;
 
@@ -101,7 +108,6 @@ private:
     int gcEra = 0;
 
     bool searchMode = false;
-    bool searchSignal = false;
     std::string searchedCommand;
 
 private slots:
@@ -117,6 +123,10 @@ private slots:
 
     void on_searchButton_clicked();
 
+    void on_shutdownButton_clicked();
+
+    void on_rebootButton_clicked();
+
     void searchPid(int pid);
     void searchCommand(const std::string command);
     void on_searchDialog_closed();
@@ -124,19 +134,31 @@ private slots:
     void keyPressEvent(QKeyEvent *event);
 
 private:
-    void initTableModel();
-    void updateLoadAverage();
-    void updateUptime();
-    void updateMem();
+    void updateSysinfo() { sysinfo(&currentSysinfo); }
     void updateTaskInfo();
+
+    void initTableModel();
+    void updateMemBar();
+    void updateCpuBar();
+    void updateLoadAverageLabel();
+    void updateUptimeLabel();
+    void updateTasksLabel();
     void updateTaskTable();
+    void sortTable();
+
+    void initSystemTab();
+    void updateOsInfoLabel();
+    void updateCpuInfoGroup();
+    void updateHostnameGroup();
+    void updateLastLoginDatetimeLabel();
+    void updateCurrentDatetimeLabel();
+
     static void formatCommand(char *src, char *dest);
     static void formatSize(unsigned long l_size, char *s_size);
     static void formatTime(unsigned long l_time, char *s_time);
     static bool isNumeric(const std::string &s) {
         return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
     }
-    void sortTable();
     // void sendMemInfo();
 };
 

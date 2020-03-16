@@ -35,8 +35,12 @@ add_executable(process-monitor
   searchdialog.cpp
   searchdialog.h
   searchdialog.ui
-  utils.cpp
   utils.h
+  maintab.cpp
+  systemtab.cpp
+  shutdowndialog.cpp
+  shutdowndialog.h
+  shutdowndialog.ui
 )
 
 target_link_libraries(process-monitor PRIVATE Qt5::Widgets)
